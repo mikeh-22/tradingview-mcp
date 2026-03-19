@@ -31,3 +31,117 @@ export interface SerializedCookie {
   httpOnly?: boolean;
   secure?: boolean;
 }
+
+// Market data
+export interface Quote {
+  symbol: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  change: number;
+  change_abs: number;
+  market_cap?: number;
+  description?: string;
+  exchange?: string;
+  type?: string;
+}
+
+export interface SymbolSearchResult {
+  symbol: string;
+  full_name: string;
+  description: string;
+  exchange: string;
+  type: string;
+  currency_code?: string;
+}
+
+export interface OHLCVBar {
+  time: number;   // Unix timestamp (seconds)
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+// Screener
+export interface ScreenerResult {
+  s: string;      // symbol
+  d: unknown[];   // column values in requested order
+}
+
+export interface ScreenerResponse {
+  data: ScreenerResult[];
+  totalCount: number;
+}
+
+// News & Ideas
+export interface NewsItem {
+  id: string;
+  title: string;
+  published: number;
+  source: string;
+  urgency: number;
+  link: string;
+  relatedSymbols?: string[];
+}
+
+export interface Idea {
+  id: string;
+  title: string;
+  author: string;
+  symbol: string;
+  published: number;
+  views: number;
+  likes: number;
+  url: string;
+}
+
+// Economic calendar
+export interface EconomicEvent {
+  id: string;
+  title: string;
+  country: string;
+  date: string;
+  impact: "low" | "medium" | "high";
+  actual?: string;
+  forecast?: string;
+  previous?: string;
+}
+
+// Chart layouts
+export interface Layout {
+  id: string;
+  name: string;
+  symbol?: string;
+  resolution?: string;
+  created_at?: string;
+  modified_at?: string;
+}
+
+// Drawings
+export interface Drawing {
+  id: string;
+  type: string;
+  points?: unknown[];
+  options?: Record<string, unknown>;
+}
+
+// Pine scripts
+export interface PineScript {
+  id: string;
+  name: string;
+  version?: string;
+  modified_at?: string;
+}
+
+// Account
+export interface UserAccount {
+  id: number;
+  username: string;
+  email?: string;
+  plan?: string;
+  avatar?: string;
+}

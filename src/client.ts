@@ -38,6 +38,51 @@ const BASE = "https://www.tradingview.com";
 const UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36";
 
+// Unauthenticated GET for public endpoints (different subdomains, no cookies needed)
+export async function publicGet<T>(url: string): Promise<T> {
+  const res = await fetch(url, {
+    headers: { "User-Agent": UA, Accept: "application/json" },
+  });
+  if (!res.ok) throw new Error(`GET ${url} → ${res.status} ${res.statusText}`);
+  return res.json() as Promise<T>;
+}
+
+// Authenticated GET/POST for arbitrary full URLs (different subdomains, with cookies)
+export async function fetchGet<T>(url: string): Promise<T> {
+  const jar = await getJar();
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent": UA,
+      Accept: "application/json",
+      Referer: BASE,
+      Cookie: await cookieHeader(jar),
+    },
+  });
+  await updateJarFromResponse(jar, res);
+  if (!res.ok) throw new Error(`GET ${url} → ${res.status} ${res.statusText}`);
+  return res.json() as Promise<T>;
+}
+
+export async function fetchPost<T>(url: string, body: unknown): Promise<T> {
+  const jar = await getJar();
+  const csrf = await csrfToken(jar);
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "User-Agent": UA,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      Referer: BASE,
+      Cookie: await cookieHeader(jar),
+      ...(csrf ? { "X-CSRFToken": csrf } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+  await updateJarFromResponse(jar, res);
+  if (!res.ok) throw new Error(`POST ${url} → ${res.status} ${res.statusText}`);
+  return res.json() as Promise<T>;
+}
+
 export async function tvGet<T>(path: string): Promise<T> {
   const jar = await getJar();
   const res = await fetch(`${BASE}${path}`, {
