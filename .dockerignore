@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.env
+.tv_session.json
+.git/
+*.md
+.github/

@@ -1,0 +1,39 @@
+name: tradingview-mcp
+
+volumes:
+  session:
+    name: tradingview-mcp-session
+
+services:
+  # ── Login helper ─────────────────────────────────────────────────────────────
+  # Run this once (or when your session expires) to authenticate and save cookies.
+  # Usage:
+  #   TV_USERNAME=you@example.com TV_PASSWORD=secret docker compose run --rm login
+  login:
+    build:
+      context: .
+      dockerfile: Dockerfile.login
+    volumes:
+      - session:/data
+    environment:
+      TV_USERNAME: ${TV_USERNAME}
+      TV_PASSWORD: ${TV_PASSWORD}
+      TV_SESSION_FILE: /data/.tv_session.json
+    profiles:
+      - login
+
+  # ── MCP server ───────────────────────────────────────────────────────────────
+  # Reads the session file written by the login service.
+  # Connect via stdio — used by Claude Desktop / Cursor / other MCP clients.
+  # Usage:
+  #   docker compose run --rm mcp
+  mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - session:/data
+    environment:
+      TV_SESSION_FILE: /data/.tv_session.json
+    stdin_open: true   # keeps stdin open for MCP stdio transport
+    tty: false         # must be false for JSON-RPC framing to work correctly
