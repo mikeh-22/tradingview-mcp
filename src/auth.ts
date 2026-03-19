@@ -2,6 +2,9 @@ import { chromium } from "playwright";
 import { CookieJar } from "tough-cookie";
 import { saveSession, loadSession } from "./session.js";
 
+// When running inside Docker, Chromium requires --no-sandbox
+const isDocker = process.env.DOCKER === "1";
+
 export async function getSession(): Promise<CookieJar> {
   const existing = await loadSession();
   if (existing) {
@@ -9,11 +12,24 @@ export async function getSession(): Promise<CookieJar> {
     return existing;
   }
 
+  if (isDocker) {
+    const sessionFile = process.env.TV_SESSION_FILE ?? ".tv_session.json";
+    throw new Error(
+      `No valid session found. Run the login container first:\n\n` +
+      `  docker run --rm -it \\\n` +
+      `    -v tradingview-mcp-session:/data \\\n` +
+      `    -e TV_USERNAME=<your_username> \\\n` +
+      `    -e TV_PASSWORD=<your_password> \\\n` +
+      `    ${process.env.IMAGE_NAME ?? "tradingview-mcp"}:login\n\n` +
+      `Then mount the same volume when starting the server so it can read ${sessionFile}.`
+    );
+  }
+
   console.error("[auth] No valid session found, logging in via browser...");
   return await loginWithPlaywright();
 }
 
-async function loginWithPlaywright(): Promise<CookieJar> {
+export async function loginWithPlaywright(): Promise<CookieJar> {
   const username = process.env.TV_USERNAME;
   const password = process.env.TV_PASSWORD;
 
@@ -23,7 +39,8 @@ async function loginWithPlaywright(): Promise<CookieJar> {
     );
   }
 
-  const browser = await chromium.launch({ headless: true });
+  const args = isDocker ? ["--no-sandbox", "--disable-setuid-sandbox"] : [];
+  const browser = await chromium.launch({ headless: true, args });
   const context = await browser.newContext();
   const page = await context.newPage();
 
