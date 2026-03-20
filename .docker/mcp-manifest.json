@@ -5,7 +5,7 @@
   "publisher": "mikeh-22",
   "repository": "https://github.com/mikeh-22/tradingview-mcp",
   "license": "MIT",
-  "image": "mikeh22/tradingview-mcp:latest",
+  "image": "mikeh1975/tradingview-mcp:latest",
   "runtime": "docker",
   "transport": "stdio",
   "volumes": [
@@ -25,7 +25,7 @@
   ],
   "setup": {
     "description": "Run the login container once before starting the server to authenticate and save session cookies.",
-    "image": "mikeh22/tradingview-mcp:login",
+    "image": "mikeh1975/tradingview-mcp:login",
     "env": [
       {
         "name": "TV_USERNAME",
