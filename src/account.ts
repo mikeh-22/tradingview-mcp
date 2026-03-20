@@ -1,37 +1,34 @@
 import { tvGet } from "./client.js";
 import type { UserAccount } from "./types.js";
 
-interface UserResponse {
+interface WatchlistRecord {
   id: number;
-  username: string;
-  email?: string;
-  plan?: string;
-  avatar_url?: string;
-  is_pro?: boolean;
-  is_premium?: boolean;
-  date_joined?: string;
-  reputation?: number;
-  following?: number;
-  followers?: number;
+  name: string;
+  type: string;
+  active: boolean;
 }
 
+interface NotificationInfo {
+  email?: string | null;
+  [key: string]: unknown;
+}
+
+/**
+ * Returns basic account info derived from the active watchlist (which embeds the user ID).
+ * TradingView does not expose a dedicated public user profile API endpoint.
+ */
 export async function getAccount(): Promise<UserAccount & Record<string, unknown>> {
-  const data = await tvGet<UserResponse>("/api/v1/user/");
+  // The active watchlist's id equals the user's numeric ID
+  const active = await tvGet<WatchlistRecord>("/api/v1/symbols_list/active/");
   return {
-    id: data.id,
-    username: data.username,
-    email: data.email,
-    plan: data.plan,
-    avatar: data.avatar_url,
-    is_pro: data.is_pro,
-    is_premium: data.is_premium,
-    date_joined: data.date_joined,
-    reputation: data.reputation,
-    following: data.following,
-    followers: data.followers,
+    id: active.id,
+    username: `user_${active.id}`,   // username not available without a profile API
+    plan: undefined,
+    avatar: undefined,
+    profile_url: `https://www.tradingview.com/u/`,
   };
 }
 
 export async function getNotificationSettings(): Promise<Record<string, unknown>> {
-  return await tvGet<Record<string, unknown>>("/api/v1/alert/notificationinfo/");
+  return await tvGet<NotificationInfo>("/api/v1/alert/notificationinfo/");
 }

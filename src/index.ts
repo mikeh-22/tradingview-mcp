@@ -47,18 +47,22 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     },
     {
       name: "create_alert",
-      description: "Create a new price alert on TradingView",
+      description: "Create a new price-crossing alert on TradingView",
       inputSchema: {
         type: "object",
         properties: {
           symbol: { type: "string", description: "Symbol in EXCHANGE:TICKER format, e.g. NASDAQ:AAPL" },
-          condition: { type: "string", description: "Alert condition: crossing, greater_than, less_than" },
-          price: { type: "number", description: "Price level for the alert" },
+          price: { type: "number", description: "Price level to alert when crossed" },
           name: { type: "string", description: "Optional alert name" },
           message: { type: "string", description: "Optional message to send when alert fires" },
+          resolution: { type: "string", description: "Timeframe: 1 (1 min), 5, 15, 60, 240, 1D, 1W (default: 1D)" },
+          frequency: { type: "string", description: "on_first_fire (once) or everytime (default: on_first_fire)" },
           expiration: { type: "string", description: "Optional ISO 8601 expiration datetime" },
+          email: { type: "boolean", description: "Send email notification (default: false)" },
+          mobile_push: { type: "boolean", description: "Send mobile push (default: true)" },
+          popup: { type: "boolean", description: "Show popup notification (default: true)" },
         },
-        required: ["symbol", "condition"],
+        required: ["symbol", "price"],
       },
     },
     {
@@ -433,11 +437,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     // ── Pine Scripts ─────────────────────────────────────────────────────────
     {
       name: "list_scripts",
-      description: "List your saved Pine Script indicators and strategies",
+      description: "List Pine Script indicators and strategies",
       inputSchema: {
         type: "object",
         properties: {
-          orderBy: { type: "string", enum: ["modified_time", "views_count", "description"], description: "Sort field (default: modified_time)" },
+          filter: { type: "string", enum: ["saved", "published", "all"], description: "saved = your saved/favorited scripts; published = your published scripts; all = entire public library (default: saved)" },
           limit: { type: "number", description: "Max results (default 100)" },
         },
         required: [],
@@ -498,26 +502,24 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case "create_alert": {
         const params = z.object({
           symbol: z.string(),
-          condition: z.string(),
-          price: z.number().optional(),
+          price: z.number(),
           name: z.string().optional(),
           message: z.string().optional(),
+          resolution: z.string().optional(),
+          frequency: z.string().optional(),
           expiration: z.string().optional(),
+          email: z.boolean().optional(),
+          mobile_push: z.boolean().optional(),
+          popup: z.boolean().optional(),
         }).parse(args);
         const result = await alerts.createAlert(params);
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
       }
       case "update_alert": {
-        const { id, ...params } = z.object({
-          id: z.string(),
-          name: z.string().optional(),
-          price: z.number().optional(),
-          message: z.string().optional(),
-          expiration: z.string().optional(),
-          active: z.boolean().optional(),
-        }).parse(args);
-        const result = await alerts.updateAlert(id, params);
-        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+        return {
+          content: [{ type: "text", text: "Error: Alert update via API is not supported. Use the TradingView chart UI to modify alerts." }],
+          isError: true,
+        };
       }
       case "delete_alert": {
         const { id } = z.object({ id: z.string() }).parse(args);
@@ -526,13 +528,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
       case "enable_alert": {
         const { id } = z.object({ id: z.string() }).parse(args);
-        const result = await alerts.setAlertActive(id, true);
-        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+        await alerts.setAlertActive(id, true);
+        return { content: [{ type: "text", text: `Alert ${id} enable requested.` }] };
       }
       case "disable_alert": {
         const { id } = z.object({ id: z.string() }).parse(args);
-        const result = await alerts.setAlertActive(id, false);
-        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+        await alerts.setAlertActive(id, false);
+        return { content: [{ type: "text", text: `Alert ${id} disable requested.` }] };
       }
 
       // ── Watchlists ──────────────────────────────────────────────────────────
@@ -720,11 +722,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       // ── Pine Scripts ────────────────────────────────────────────────────────
       case "list_scripts": {
-        const { orderBy, limit } = z.object({
-          orderBy: z.enum(["modified_time", "views_count", "description"]).optional(),
+        const { filter, limit } = z.object({
+          filter: z.enum(["saved", "published", "all"]).optional(),
           limit: z.number().optional(),
         }).parse(args ?? {});
-        const result = await scripts.listScripts({ orderBy, limit });
+        const result = await scripts.listScripts({ filter, limit });
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
       }
       case "get_script": {

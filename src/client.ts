@@ -138,6 +138,27 @@ export async function tvPut<T>(path: string, body: unknown): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+// Send a JSON array as the raw body (used by watchlist append/remove endpoints)
+export async function tvPostArray<T>(path: string, body: unknown[]): Promise<T> {
+  const jar = await getJar();
+  const csrf = await csrfToken(jar);
+  const res = await fetch(`${BASE}${path}`, {
+    method: "POST",
+    headers: {
+      "User-Agent": UA,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      Referer: BASE,
+      Cookie: await cookieHeader(jar),
+      ...(csrf ? { "X-CSRFToken": csrf } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+  await updateJarFromResponse(jar, res);
+  if (!res.ok) throw new Error(`POST ${path} → ${res.status} ${res.statusText}`);
+  return res.json() as Promise<T>;
+}
+
 export async function tvDelete(path: string): Promise<void> {
   const jar = await getJar();
   const csrf = await csrfToken(jar);
