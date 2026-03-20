@@ -18,8 +18,10 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
+    "@types/ws": "^8.18.1",
     "playwright": "^1.48.0",
     "tough-cookie": "^4.1.4",
+    "ws": "^8.19.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {
