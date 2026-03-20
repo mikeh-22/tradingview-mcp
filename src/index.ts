@@ -12,10 +12,8 @@ import * as watchlists from "./watchlists.js";
 import * as market from "./market.js";
 import * as screener from "./screener.js";
 import * as news from "./news.js";
-import * as calendar from "./calendar.js";
 import * as layouts from "./layouts.js";
 import * as ohlcv from "./ohlcv.js";
-import * as drawings from "./drawings.js";
 import * as scripts from "./scripts.js";
 import * as account from "./account.js";
 import { resetSession } from "./client.js";
@@ -33,7 +31,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     // ── Alerts ──────────────────────────────────────────────────────────────
     {
       name: "list_alerts",
-      description: "List all active TradingView alerts",
+      description: "List all active TradingView price alerts",
       inputSchema: { type: "object", properties: {}, required: [] },
     },
     {
@@ -42,65 +40,6 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       inputSchema: {
         type: "object",
         properties: { id: { type: "string", description: "Alert ID" } },
-        required: ["id"],
-      },
-    },
-    {
-      name: "create_alert",
-      description: "Create a new price alert on TradingView",
-      inputSchema: {
-        type: "object",
-        properties: {
-          symbol: { type: "string", description: "Symbol in EXCHANGE:TICKER format, e.g. NASDAQ:AAPL" },
-          condition: { type: "string", description: "Alert condition: crossing, greater_than, less_than" },
-          price: { type: "number", description: "Price level for the alert" },
-          name: { type: "string", description: "Optional alert name" },
-          message: { type: "string", description: "Optional message to send when alert fires" },
-          expiration: { type: "string", description: "Optional ISO 8601 expiration datetime" },
-        },
-        required: ["symbol", "condition"],
-      },
-    },
-    {
-      name: "update_alert",
-      description: "Update an existing alert",
-      inputSchema: {
-        type: "object",
-        properties: {
-          id: { type: "string" },
-          name: { type: "string" },
-          price: { type: "number" },
-          message: { type: "string" },
-          expiration: { type: "string" },
-          active: { type: "boolean" },
-        },
-        required: ["id"],
-      },
-    },
-    {
-      name: "delete_alert",
-      description: "Delete an alert by ID",
-      inputSchema: {
-        type: "object",
-        properties: { id: { type: "string" } },
-        required: ["id"],
-      },
-    },
-    {
-      name: "enable_alert",
-      description: "Enable (activate) an alert",
-      inputSchema: {
-        type: "object",
-        properties: { id: { type: "string" } },
-        required: ["id"],
-      },
-    },
-    {
-      name: "disable_alert",
-      description: "Disable (deactivate) an alert without deleting it",
-      inputSchema: {
-        type: "object",
-        properties: { id: { type: "string" } },
         required: ["id"],
       },
     },
@@ -127,7 +66,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         type: "object",
         properties: {
           name: { type: "string" },
-          symbols: { type: "array", items: { type: "string" }, description: "Optional initial symbols" },
+          symbols: {
+            type: "array",
+            items: { type: "string" },
+            description: "Initial symbols in EXCHANGE:TICKER format",
+          },
         },
         required: ["name"],
       },
@@ -206,20 +149,6 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       },
     },
     {
-      name: "search_symbols",
-      description: "Search TradingView's symbol database by name or ticker",
-      inputSchema: {
-        type: "object",
-        properties: {
-          query: { type: "string", description: "Search query, e.g. 'Apple' or 'AAPL'" },
-          exchange: { type: "string", description: "Filter by exchange, e.g. 'NASDAQ'" },
-          type: { type: "string", description: "Filter by type: stock, fund, dr, right, bond, warrant, structured, forex, futures, crypto, index, economic" },
-          limit: { type: "number", description: "Max results (default 30)" },
-        },
-        required: ["query"],
-      },
-    },
-    {
       name: "get_ohlcv",
       description: "Get historical OHLCV (candlestick) data for a symbol",
       inputSchema: {
@@ -252,13 +181,13 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
               type: "object",
               properties: {
                 left: { type: "string", description: "Field name, e.g. 'market_cap_basic'" },
-                operation: { type: "string", description: "Operator: greater, less, greater_or_equal, less_or_equal, equal, in_range, in" },
+                operation: { type: "string", description: "Operator: greater, less, equal, in_range, in" },
                 right: { description: "Value or [min, max] for in_range" },
               },
               required: ["left", "operation", "right"],
             },
           },
-          columns: { type: "array", items: { type: "string" }, description: "Fields to return (uses defaults if omitted)" },
+          columns: { type: "array", items: { type: "string" }, description: "Fields to return" },
           sort: {
             type: "object",
             properties: {
@@ -305,7 +234,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     },
     {
       name: "get_screener_fields",
-      description: "List available screener field names by category (price, volume, fundamentals, technical, etc.)",
+      description: "List available screener field names by category",
       inputSchema: { type: "object", properties: {}, required: [] },
     },
 
@@ -316,7 +245,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       inputSchema: {
         type: "object",
         properties: {
-          symbol: { type: "string", description: "Symbol in EXCHANGE:TICKER format" },
+          symbol: { type: "string", description: "Symbol in EXCHANGE:TICKER format, e.g. NASDAQ:AAPL" },
           count: { type: "number", description: "Number of headlines to return (default 20)" },
         },
         required: ["symbol"],
@@ -328,9 +257,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       inputSchema: {
         type: "object",
         properties: {
-          symbol: { type: "string", description: "Filter ideas by symbol" },
+          symbol: { type: "string", description: "Filter by symbol, e.g. NASDAQ:AAPL" },
           query: { type: "string", description: "Keyword filter" },
-          sort: { type: "string", enum: ["recent", "popular", "editors_pick"], description: "Sort order (default: recent)" },
+          sort: { type: "string", enum: ["recent", "trending"], description: "Sort order (default: recent)" },
           page: { type: "number", description: "Page number (default 1)" },
         },
         required: [],
@@ -348,26 +277,6 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       },
     },
 
-    // ── Economic Calendar ────────────────────────────────────────────────────
-    {
-      name: "get_economic_calendar",
-      description: "Get upcoming economic events and data releases (GDP, CPI, FOMC, etc.)",
-      inputSchema: {
-        type: "object",
-        properties: {
-          from: { type: "string", description: "Start date, ISO 8601, e.g. '2024-01-01' (default: now)" },
-          to: { type: "string", description: "End date, ISO 8601 (default: 7 days from now)" },
-          countries: {
-            type: "array",
-            items: { type: "string" },
-            description: "Country codes to filter by, e.g. ['US', 'EU', 'GB', 'JP']",
-          },
-          minImpact: { type: "string", enum: ["low", "medium", "high"], description: "Minimum impact level" },
-        },
-        required: [],
-      },
-    },
-
     // ── Chart Layouts ────────────────────────────────────────────────────────
     {
       name: "list_layouts",
@@ -376,68 +285,26 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     },
     {
       name: "get_layout",
-      description: "Get the full configuration of a saved chart layout",
+      description: "Get details of a saved chart layout including its URL",
       inputSchema: {
         type: "object",
         properties: { id: { type: "string", description: "Layout ID" } },
         required: ["id"],
-      },
-    },
-    {
-      name: "delete_layout",
-      description: "Delete a saved chart layout",
-      inputSchema: {
-        type: "object",
-        properties: { id: { type: "string", description: "Layout ID" } },
-        required: ["id"],
-      },
-    },
-
-    // ── Drawings ─────────────────────────────────────────────────────────────
-    {
-      name: "list_drawings",
-      description: "List all drawings (trend lines, levels, etc.) on a chart layout",
-      inputSchema: {
-        type: "object",
-        properties: { layoutId: { type: "string", description: "Layout ID" } },
-        required: ["layoutId"],
-      },
-    },
-    {
-      name: "save_drawing",
-      description: "Add a drawing to a chart layout",
-      inputSchema: {
-        type: "object",
-        properties: {
-          layoutId: { type: "string", description: "Layout ID" },
-          type: { type: "string", description: "Drawing type, e.g. 'LineToolTrendLine', 'LineToolHorzLine'" },
-          points: { type: "array", description: "Array of coordinate points" },
-          options: { type: "object", description: "Drawing style options" },
-        },
-        required: ["layoutId", "type"],
-      },
-    },
-    {
-      name: "delete_drawing",
-      description: "Delete a drawing from a chart layout",
-      inputSchema: {
-        type: "object",
-        properties: {
-          layoutId: { type: "string" },
-          drawingId: { type: "string" },
-        },
-        required: ["layoutId", "drawingId"],
       },
     },
 
     // ── Pine Scripts ─────────────────────────────────────────────────────────
     {
       name: "list_scripts",
-      description: "List your saved Pine Script indicators and strategies",
+      description: "List Pine Script indicators and strategies",
       inputSchema: {
         type: "object",
         properties: {
-          orderBy: { type: "string", enum: ["modified_time", "views_count", "description"], description: "Sort field (default: modified_time)" },
+          filter: {
+            type: "string",
+            enum: ["saved", "published", "all"],
+            description: "saved = your saved/favorited scripts; published = your published scripts; all = entire public library (default: saved)",
+          },
           limit: { type: "number", description: "Max results (default 100)" },
         },
         required: [],
@@ -445,11 +312,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     },
     {
       name: "get_script",
-      description: "Get the Pine Script source code for a saved script",
+      description: "Get the Pine Script source code for a script by ID",
       inputSchema: {
         type: "object",
         properties: {
-          id: { type: "string", description: "Script ID" },
+          id: { type: "string", description: "Script ID (scriptIdPart), e.g. STD;RSI" },
           version: { type: "string", description: "Script version (uses latest if omitted)" },
         },
         required: ["id"],
@@ -459,12 +326,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     // ── Account ──────────────────────────────────────────────────────────────
     {
       name: "get_account",
-      description: "Get your TradingView account details (username, plan, reputation, etc.)",
-      inputSchema: { type: "object", properties: {}, required: [] },
-    },
-    {
-      name: "get_notification_settings",
-      description: "Get your TradingView alert notification settings",
+      description: "Get your TradingView account details",
       inputSchema: { type: "object", properties: {}, required: [] },
     },
 
@@ -493,45 +355,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case "get_alert": {
         const { id } = z.object({ id: z.string() }).parse(args);
         const result = await alerts.getAlert(id);
-        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
-      }
-      case "create_alert": {
-        const params = z.object({
-          symbol: z.string(),
-          condition: z.string(),
-          price: z.number().optional(),
-          name: z.string().optional(),
-          message: z.string().optional(),
-          expiration: z.string().optional(),
-        }).parse(args);
-        const result = await alerts.createAlert(params);
-        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
-      }
-      case "update_alert": {
-        const { id, ...params } = z.object({
-          id: z.string(),
-          name: z.string().optional(),
-          price: z.number().optional(),
-          message: z.string().optional(),
-          expiration: z.string().optional(),
-          active: z.boolean().optional(),
-        }).parse(args);
-        const result = await alerts.updateAlert(id, params);
-        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
-      }
-      case "delete_alert": {
-        const { id } = z.object({ id: z.string() }).parse(args);
-        await alerts.deleteAlert(id);
-        return { content: [{ type: "text", text: `Alert ${id} deleted.` }] };
-      }
-      case "enable_alert": {
-        const { id } = z.object({ id: z.string() }).parse(args);
-        const result = await alerts.setAlertActive(id, true);
-        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
-      }
-      case "disable_alert": {
-        const { id } = z.object({ id: z.string() }).parse(args);
-        const result = await alerts.setAlertActive(id, false);
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
       }
 
@@ -583,16 +406,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case "get_symbol_info": {
         const { symbol } = z.object({ symbol: z.string() }).parse(args);
         const result = await market.getSymbolInfo(symbol);
-        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
-      }
-      case "search_symbols": {
-        const { query, exchange, type, limit } = z.object({
-          query: z.string(),
-          exchange: z.string().optional(),
-          type: z.string().optional(),
-          limit: z.number().optional(),
-        }).parse(args);
-        const result = await market.searchSymbols(query, { exchange, type, limit });
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
       }
       case "get_ohlcv": {
@@ -648,7 +461,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       // ── News & Ideas ────────────────────────────────────────────────────────
       case "get_news": {
-        const { symbol, count } = z.object({ symbol: z.string(), count: z.number().optional() }).parse(args);
+        const { symbol, count } = z.object({
+          symbol: z.string(),
+          count: z.number().optional(),
+        }).parse(args);
         const result = await news.getNews(symbol, count);
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
       }
@@ -656,27 +472,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const opts = z.object({
           symbol: z.string().optional(),
           query: z.string().optional(),
-          sort: z.enum(["recent", "popular", "editors_pick"]).optional(),
+          sort: z.enum(["recent", "trending"]).optional(),
           page: z.number().optional(),
-        }).parse(args);
+        }).parse(args ?? {});
         const result = await news.searchIdeas(opts);
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
       }
       case "get_trending_ideas": {
         const { page } = z.object({ page: z.number().optional() }).parse(args ?? {});
         const result = await news.getTrendingIdeas(page);
-        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
-      }
-
-      // ── Economic Calendar ───────────────────────────────────────────────────
-      case "get_economic_calendar": {
-        const opts = z.object({
-          from: z.string().optional(),
-          to: z.string().optional(),
-          countries: z.array(z.string()).optional(),
-          minImpact: z.enum(["low", "medium", "high"]).optional(),
-        }).parse(args ?? {});
-        const result = await calendar.getEconomicCalendar(opts);
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
       }
 
@@ -690,45 +494,21 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const result = await layouts.getLayout(id);
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
       }
-      case "delete_layout": {
-        const { id } = z.object({ id: z.string() }).parse(args);
-        await layouts.deleteLayout(id);
-        return { content: [{ type: "text", text: `Layout ${id} deleted.` }] };
-      }
-
-      // ── Drawings ────────────────────────────────────────────────────────────
-      case "list_drawings": {
-        const { layoutId } = z.object({ layoutId: z.string() }).parse(args);
-        const result = await drawings.listDrawings(layoutId);
-        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
-      }
-      case "save_drawing": {
-        const { layoutId, type: drawingType, points, options: drawingOptions } = z.object({
-          layoutId: z.string(),
-          type: z.string(),
-          points: z.array(z.unknown()).optional(),
-          options: z.record(z.unknown()).optional(),
-        }).parse(args);
-        const result = await drawings.saveDrawing(layoutId, { type: drawingType, points, options: drawingOptions });
-        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
-      }
-      case "delete_drawing": {
-        const { layoutId, drawingId } = z.object({ layoutId: z.string(), drawingId: z.string() }).parse(args);
-        await drawings.deleteDrawing(layoutId, drawingId);
-        return { content: [{ type: "text", text: `Drawing ${drawingId} deleted from layout ${layoutId}.` }] };
-      }
 
       // ── Pine Scripts ────────────────────────────────────────────────────────
       case "list_scripts": {
-        const { orderBy, limit } = z.object({
-          orderBy: z.enum(["modified_time", "views_count", "description"]).optional(),
+        const { filter, limit } = z.object({
+          filter: z.enum(["saved", "published", "all"]).optional(),
           limit: z.number().optional(),
         }).parse(args ?? {});
-        const result = await scripts.listScripts({ orderBy, limit });
+        const result = await scripts.listScripts({ filter, limit });
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
       }
       case "get_script": {
-        const { id, version } = z.object({ id: z.string(), version: z.string().optional() }).parse(args);
+        const { id, version } = z.object({
+          id: z.string(),
+          version: z.string().optional(),
+        }).parse(args);
         const result = await scripts.getScript(id, version);
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
       }
@@ -736,10 +516,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       // ── Account ─────────────────────────────────────────────────────────────
       case "get_account": {
         const result = await account.getAccount();
-        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
-      }
-      case "get_notification_settings": {
-        const result = await account.getNotificationSettings();
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
       }
 

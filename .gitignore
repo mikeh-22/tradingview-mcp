@@ -3,3 +3,4 @@ dist/
 .env
 .tv_session.json
 *.js.map
+scripts/

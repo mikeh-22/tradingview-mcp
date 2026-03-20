@@ -3,42 +3,51 @@ import type { PineScript } from "./types.js";
 
 const PINE = "https://pine-facade.tradingview.com/pine-facade";
 
-interface ScriptsResponse {
-  results: Array<{
-    scriptIdPart: string;
-    version: string;
-    description: string;
-    extra: {
-      kind: string;
-      serverSideOnly?: boolean;
-    };
-    modified_time?: number;
-  }>;
+interface ScriptRecord {
+  scriptIdPart: string;
+  scriptName: string;
+  version: string;
+  scriptAccess: string;
+  userId?: number;
+  extra?: { kind?: string; serverSideOnly?: boolean };
 }
 
-interface ScriptSourceResponse {
+interface ScriptSource {
   source: string;
   version: string;
   description: string;
 }
 
+interface VersionRecord {
+  version: string;
+  created: string;
+}
+
+function mapRecord(s: ScriptRecord): PineScript {
+  return {
+    id: s.scriptIdPart,
+    name: s.scriptName,
+    version: s.version,
+  };
+}
+
+/**
+ * List Pine scripts.
+ * filter: "saved" = scripts the user has saved/favorited
+ *         "published" = scripts the user has published
+ *         "all" = all public scripts in the library (large dataset, use limit)
+ */
 export async function listScripts(options: {
-  orderBy?: "modified_time" | "views_count" | "description";
+  filter?: "saved" | "published" | "all";
   limit?: number;
 } = {}): Promise<PineScript[]> {
+  const filter = options.filter ?? "saved";
   const params = new URLSearchParams({
-    orderby: options.orderBy ? `-${options.orderBy}` : "-modified_time",
+    filter,
     limit: String(options.limit ?? 100),
   });
-  const data = await fetchGet<ScriptsResponse>(`${PINE}/list?${params}`);
-  return (data.results ?? []).map((s) => ({
-    id: s.scriptIdPart,
-    name: s.description,
-    version: s.version,
-    modified_at: s.modified_time
-      ? new Date(s.modified_time * 1000).toISOString()
-      : undefined,
-  }));
+  const data = await fetchGet<ScriptRecord[]>(`${PINE}/list?${params}`);
+  return (data ?? []).map(mapRecord);
 }
 
 export async function getScript(id: string, version?: string): Promise<{
@@ -47,16 +56,15 @@ export async function getScript(id: string, version?: string): Promise<{
   name: string;
   source: string;
 }> {
-  // If version not provided, fetch the script list to get latest version
+  // Resolve version if not provided
   let resolvedVersion = version;
   if (!resolvedVersion) {
-    const scripts = await listScripts();
-    const found = scripts.find((s) => s.id === id);
-    resolvedVersion = found?.version ?? "1";
+    const versions = await fetchGet<VersionRecord[]>(`${PINE}/versions/${encodeURIComponent(id)}/last`);
+    resolvedVersion = versions?.[0]?.version ?? "1";
   }
 
-  const data = await fetchGet<ScriptSourceResponse>(
-    `${PINE}/translate/${id}/${resolvedVersion}`
+  const data = await fetchGet<ScriptSource>(
+    `${PINE}/translate/${encodeURIComponent(id)}/${resolvedVersion}`
   );
   return {
     id,
