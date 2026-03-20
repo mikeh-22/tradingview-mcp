@@ -1,9 +1,12 @@
+import { existsSync } from "fs";
 import { chromium, type BrowserContext } from "playwright";
 import { CookieJar } from "tough-cookie";
 import { saveSession, loadSession } from "./session.js";
 
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36";
-const isDocker = process.env.DOCKER === "1";
+// Detect Docker via the filesystem marker — more reliable than an env var
+// which can leak into the host shell from docker run commands.
+const isDocker = existsSync("/.dockerenv") || process.env.DOCKER === "1";
 
 // Sentinel — errors that should not trigger the Playwright fallback
 class NoFallbackError extends Error {}

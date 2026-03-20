@@ -48,15 +48,6 @@ export interface Quote {
   type?: string;
 }
 
-export interface SymbolSearchResult {
-  symbol: string;
-  full_name: string;
-  description: string;
-  exchange: string;
-  type: string;
-  currency_code?: string;
-}
-
 export interface OHLCVBar {
   time: number;   // Unix timestamp (seconds)
   open: number;
