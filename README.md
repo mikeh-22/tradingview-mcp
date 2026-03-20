@@ -1,6 +1,6 @@
 # tradingview-mcp
 
-A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that lets AI assistants interact with TradingView — quotes, screener, alerts, watchlists, news, economic calendar, chart layouts, drawings, Pine scripts, and more. Connect it to Claude Desktop, Cursor, or any MCP-compatible client and interact with TradingView using natural language.
+A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that lets AI assistants interact with TradingView — real-time quotes, historical OHLCV data, screener, alerts, watchlists, news, chart layouts, Pine scripts, and more. Connect it to Claude Desktop, Cursor, or any MCP-compatible client and interact with TradingView using natural language.
 
 > **Disclaimer:** This project uses TradingView's internal, undocumented web API. It is not affiliated with or endorsed by TradingView. API endpoints may change without notice. Use in accordance with TradingView's Terms of Service.
 
@@ -8,7 +8,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that le
 
 ## How It Works
 
-TradingView's desktop and web apps communicate with their backend over a private REST API. This server:
+TradingView's web app communicates with its backend over a private REST API and a proprietary WebSocket protocol. This server:
 
 1. **Authenticates** using a headless Chromium browser (via [Playwright](https://playwright.dev)) to replicate the normal login flow and obtain valid session cookies.
 2. **Persists** those cookies to disk so re-authentication only happens when the session expires (~25 days).
@@ -19,85 +19,84 @@ MCP Client (Claude, Cursor…)
         │  MCP protocol (stdio)
         ▼
   tradingview-mcp
-        │  HTTPS + session cookies     WebSocket (OHLCV)
-        ▼                                      ▼
-  tradingview.com REST API         data.tradingview.com
+        │  HTTPS + session cookies        WebSocket (OHLCV)
+        ▼                                        ▼
+  tradingview.com REST API       prodata.tradingview.com
 ```
 
 ---
 
 ## Features
 
-- **Market Data** — real-time quotes, symbol search, detailed symbol info
+- **Market Data** — real-time quotes and detailed symbol info (P/E, EPS, beta, sector, 52-week range, etc.)
 - **Historical Data** — OHLCV candles via TradingView's WebSocket protocol
 - **Screener** — filter stocks, crypto, and forex by price, fundamentals, and technicals
-- **Alerts** — list, create, update, enable/disable, and delete price alerts
+- **Alerts** — list and inspect price alerts
 - **Watchlists** — list, create, rename, add/remove symbols, and delete watchlists
 - **News & Ideas** — latest headlines per symbol, community ideas search, trending ideas
-- **Economic Calendar** — upcoming macro events with impact ratings
-- **Chart Layouts** — list, inspect, and delete saved chart layouts
-- **Drawings** — list, add, and delete drawings on chart layouts
-- **Pine Scripts** — list and retrieve source code for saved scripts
-- **Account** — account details and notification settings
+- **Chart Layouts** — list and inspect saved chart layouts
+- **Pine Scripts** — list and retrieve source code for saved indicators and strategies
+- **Account** — account details
 - **Session persistence** — logs in once via headless browser, reuses cookies for subsequent runs
-
----
-
-## Requirements
-
-- Node.js 18 or later
-- A TradingView account (free tier is sufficient for most tools)
 
 ---
 
 ## Installation
 
+### Option A — Docker (recommended)
+
+No Node.js required. Uses the published multi-platform image (`linux/amd64` + `linux/arm64`).
+
+**1. Authenticate once**
+
 ```bash
-# Clone the repository
+docker run --rm \
+  -v tradingview-mcp-session:/data \
+  -e TV_USERNAME=your@email.com \
+  -e TV_PASSWORD=yourpassword \
+  -e TV_SESSION_FILE=/data/.tv_session.json \
+  mikeh1975/tradingview-mcp:login
+```
+
+This runs a headless Chromium browser, logs into TradingView, and saves the session cookies to a named Docker volume. You only need to redo this when the session expires (~25 days).
+
+**2. Configure Claude Desktop**
+
+Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
+
+```json
+{
+  "mcpServers": {
+    "tradingview": {
+      "command": "docker",
+      "args": [
+        "run", "--rm", "-i",
+        "-v", "tradingview-mcp-session:/data",
+        "-e", "TV_SESSION_FILE=/data/.tv_session.json",
+        "mikeh1975/tradingview-mcp:latest"
+      ]
+    }
+  }
+}
+```
+
+Restart Claude Desktop. You should see "tradingview" in the MCP tools list.
+
+---
+
+### Option B — Local (Node.js)
+
+**Requirements:** Node.js 18+, a TradingView account.
+
+```bash
 git clone https://github.com/mikeh-22/tradingview-mcp.git
 cd tradingview-mcp
-
-# Install dependencies
 npm install
-
-# Install the Playwright Chromium browser used for login
 npx playwright install chromium
-
-# Set up credentials
-cp .env.example .env
+npm run build
 ```
 
-Edit `.env` with your TradingView credentials:
-
-```env
-TV_USERNAME=your_username_or_email
-TV_PASSWORD=your_password
-
-# Optional: custom path for the saved session file (default: .tv_session.json)
-TV_SESSION_FILE=.tv_session.json
-```
-
----
-
-## Build & Run
-
-```bash
-npm run build   # compile TypeScript → dist/
-npm start       # start the MCP server on stdio
-```
-
-On the **first run**, a headless Chromium window opens, navigates to tradingview.com, and logs in using your credentials. Session cookies are saved to `.tv_session.json`. All subsequent runs skip the browser entirely and use the saved session.
-
-To force a fresh login, delete `.tv_session.json` or call the `reset_session` tool.
-
----
-
-## Connecting to Claude Desktop
-
-Add the server to your Claude Desktop config at:
-
-- **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
+**Configure Claude Desktop:**
 
 ```json
 {
@@ -114,7 +113,9 @@ Add the server to your Claude Desktop config at:
 }
 ```
 
-Restart Claude Desktop after saving. You should see "tradingview" appear in the MCP tools list.
+On the first run, a headless Chromium browser opens and logs in using your credentials. Session cookies are saved to `.tv_session.json`. All subsequent runs skip the browser entirely.
+
+To force a fresh login, delete `.tv_session.json` or call the `reset_session` tool.
 
 ---
 
@@ -130,21 +131,11 @@ Returns real-time price data for one or more symbols.
 | `symbols` | string[] | ✓ | Symbols in `EXCHANGE:TICKER` format, e.g. `["NASDAQ:AAPL", "BINANCE:BTCUSDT"]` |
 
 #### `get_symbol_info`
-Returns detailed fundamental and technical data for a single symbol (P/E, EPS, 52-week high/low, beta, sector, etc.).
+Returns detailed fundamental and technical data for a single symbol (P/E, EPS, 52-week high/low, beta, sector, dividends, etc.).
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `symbol` | string | ✓ | Symbol in `EXCHANGE:TICKER` format |
-
-#### `search_symbols`
-Searches TradingView's symbol database by name or ticker.
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `query` | string | ✓ | Search term, e.g. `"Apple"` or `"AAPL"` |
-| `exchange` | string | | Filter by exchange, e.g. `"NASDAQ"` |
-| `type` | string | | Filter by type: `stock`, `crypto`, `forex`, `futures`, `index`, `fund`, etc. |
-| `limit` | number | | Max results (default 30) |
 
 #### `get_ohlcv`
 Returns historical OHLCV candlestick data via TradingView's WebSocket protocol.
@@ -192,7 +183,7 @@ Returns a reference list of all available screener field names, grouped by categ
 
 Supported operations: `greater`, `less`, `greater_or_equal`, `less_or_equal`, `equal`, `not_equal`, `in_range`, `not_in_range`, `in`, `not_in`, `crosses_up`, `crosses_down`
 
-For `in_range`: `right` should be `[min, max]`. Example — RSI between 30 and 50:
+For `in_range`, `right` should be `[min, max]`. Example — RSI between 30 and 50:
 
 ```json
 { "left": "RSI", "operation": "in_range", "right": [30, 50] }
@@ -211,44 +202,6 @@ Returns all alerts on your account.
 
 #### `get_alert`
 Returns full details for a single alert.
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `id` | string | ✓ | Alert ID |
-
-#### `create_alert`
-Creates a new alert.
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `symbol` | string | ✓ | Symbol in `EXCHANGE:TICKER` format |
-| `condition` | string | ✓ | Condition type: `crossing`, `greater_than`, `less_than` |
-| `price` | number | | Price level to trigger at |
-| `name` | string | | Display name for the alert |
-| `message` | string | | Message sent when the alert fires |
-| `expiration` | string | | ISO 8601 datetime when the alert expires |
-
-#### `update_alert`
-Modifies an existing alert.
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `id` | string | ✓ | Alert ID |
-| `name` | string | | New name |
-| `price` | number | | New price level |
-| `message` | string | | New message |
-| `expiration` | string | | New expiration datetime |
-| `active` | boolean | | Enable or disable the alert |
-
-#### `delete_alert`
-Permanently deletes an alert.
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `id` | string | ✓ | Alert ID |
-
-#### `enable_alert` / `disable_alert`
-Toggles an alert on or off without deleting it.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -330,29 +283,15 @@ Searches published TradingView chart ideas.
 |-----------|------|----------|-------------|
 | `symbol` | string | | Filter ideas by symbol |
 | `query` | string | | Keyword filter |
-| `sort` | string | | `recent` (default), `popular`, or `editors_pick` |
+| `sort` | string | | `recent` (default) or `trending` |
 | `page` | number | | Page number (default 1) |
 
 #### `get_trending_ideas`
-Returns trending/popular TradingView chart ideas.
+Returns trending TradingView chart ideas.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `page` | number | | Page number (default 1) |
-
----
-
-### Economic Calendar
-
-#### `get_economic_calendar`
-Returns upcoming economic events — GDP, CPI, FOMC decisions, jobs reports, etc.
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `from` | string | | Start date, ISO 8601 (default: now) |
-| `to` | string | | End date, ISO 8601 (default: 7 days from now) |
-| `countries` | string[] | | Country codes to filter by, e.g. `["US", "EU", "GB", "JP"]` |
-| `minImpact` | string | | Minimum impact level: `low`, `medium`, or `high` |
 
 ---
 
@@ -366,66 +305,30 @@ Returns all saved chart layouts.
 ```
 
 #### `get_layout`
-Returns the full configuration of a saved layout (symbol, timeframe, indicators, settings).
+Returns details of a saved layout including its name, symbol, and resolution.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `id` | string | ✓ | Layout ID |
-
-#### `delete_layout`
-Permanently deletes a saved layout.
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `id` | string | ✓ | Layout ID |
-
----
-
-### Drawings
-
-#### `list_drawings`
-Returns all drawings on a chart layout (trend lines, horizontal levels, etc.).
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `layoutId` | string | ✓ | Layout ID |
-
-#### `save_drawing`
-Adds a drawing to a chart layout.
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `layoutId` | string | ✓ | Layout ID |
-| `type` | string | ✓ | Drawing type, e.g. `LineToolTrendLine`, `LineToolHorzLine` |
-| `points` | array | | Coordinate points for the drawing |
-| `options` | object | | Style options (color, linewidth, etc.) |
-
-#### `delete_drawing`
-Removes a drawing from a chart layout.
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `layoutId` | string | ✓ | Layout ID |
-| `drawingId` | string | ✓ | Drawing ID |
 
 ---
 
 ### Pine Scripts
 
 #### `list_scripts`
-Returns your saved Pine Script indicators and strategies.
+Returns Pine Script indicators and strategies.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `orderBy` | string | | Sort field: `modified_time` (default), `views_count`, `description` |
+| `filter` | string | | `saved` (default) — your saved/favorited scripts; `published` — your published scripts; `all` — entire public library |
 | `limit` | number | | Max results (default 100) |
 
 #### `get_script`
-Returns the Pine Script source code for a saved script.
+Returns the Pine Script source code for a script by ID.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `id` | string | ✓ | Script ID |
+| `id` | string | ✓ | Script ID (e.g. `STD;RSI`) |
 | `version` | string | | Script version (uses latest if omitted) |
 
 ---
@@ -433,14 +336,7 @@ Returns the Pine Script source code for a saved script.
 ### Account
 
 #### `get_account`
-Returns your TradingView account details — username, plan, reputation, follower counts, join date.
-
-```
-(no parameters)
-```
-
-#### `get_notification_settings`
-Returns your alert notification settings (email, push, webhook configuration).
+Returns your TradingView account details.
 
 ```
 (no parameters)
@@ -451,7 +347,7 @@ Returns your alert notification settings (email, push, webhook configuration).
 ### Session
 
 #### `reset_session`
-Clears the saved session from memory. The next tool call will trigger a fresh Playwright login.
+Clears the saved session. The next tool call will trigger a fresh Playwright login.
 
 ```
 (no parameters)
@@ -479,20 +375,17 @@ TradingView uses an `EXCHANGE:TICKER` format for all symbols:
 src/
 ├── index.ts       # MCP server entrypoint — tool definitions and request handlers
 ├── auth.ts        # Playwright login flow — opens headless browser, extracts cookies
-├── session.ts     # Cookie persistence — save/load .tv_session.json with TTL check
 ├── client.ts      # HTTP client — fetch wrapper with cookie jar, CSRF, and subdomain support
 ├── types.ts       # Shared TypeScript interfaces
-├── alerts.ts      # Alert CRUD
+├── alerts.ts      # Alert read operations
 ├── watchlists.ts  # Watchlist CRUD
-├── market.ts      # Quotes, symbol search, symbol info
+├── market.ts      # Quotes and symbol info
 ├── ohlcv.ts       # Historical OHLCV via TradingView WebSocket protocol
 ├── screener.ts    # Stock/crypto/forex screener
 ├── news.ts        # News headlines and community ideas
-├── calendar.ts    # Economic calendar events
-├── layouts.ts     # Chart layout management
-├── drawings.ts    # Chart drawing management
+├── layouts.ts     # Chart layout read operations
 ├── scripts.ts     # Pine Script source retrieval
-└── account.ts     # Account info and notification settings
+└── account.ts     # Account info
 ```
 
 ---
@@ -501,19 +394,19 @@ src/
 
 **Login fails / Playwright times out**
 
-TradingView's login page varies by account type and may show a CAPTCHA or 2FA prompt. Try running with `headless: false` in `src/auth.ts` to watch the browser and identify what's blocking the flow.
+TradingView's login page may show a CAPTCHA or 2FA prompt. Try setting `headless: false` in `src/auth.ts` to watch the browser and identify what's blocking the flow.
 
 **API requests return 403 or 401**
 
-Your session has likely expired. Delete `.tv_session.json` (or call `reset_session`) to trigger a fresh login.
+Your session has likely expired. Delete `.tv_session.json` (or call `reset_session`) to trigger a fresh login. With Docker, re-run the login container.
 
-**API requests return 404 or unexpected response shapes**
+**API requests return 404 or unexpected shapes**
 
-TradingView's internal API is undocumented and may change. Open your browser's DevTools → Network tab, perform the action manually on tradingview.com, and compare the actual request URL and payload against the relevant file in `src/`.
+TradingView's internal API is undocumented and may change without notice. Open your browser's DevTools → Network tab, perform the action manually on tradingview.com, and compare the request URL and payload against the relevant file in `src/`.
 
 **`get_ohlcv` times out**
 
-The WebSocket connection to `data.tradingview.com` may be blocked by a firewall or the symbol may be invalid. Verify the symbol format using `search_symbols` first. The timeout is 30 seconds.
+The WebSocket connection to `prodata.tradingview.com` may be blocked by a firewall, or the symbol format may be incorrect. The timeout is 30 seconds.
 
 **`TV_USERNAME` / `TV_PASSWORD` not found**
 
@@ -525,15 +418,11 @@ When running via Claude Desktop, set credentials in the `env` block of your MCP 
 
 | Workflow | Trigger | Action |
 |----------|---------|--------|
-| `ci.yml` | Push to any branch, PRs to `main` | Typecheck + build; uploads `dist/` as a build artifact |
-| `release.yml` | Push a `v*.*.*` tag | Build + create a GitHub Release with dist files attached |
+| `docker.yml` | Push to `main`, version tags (`v*.*.*`), PRs to `main` | Builds and pushes multi-platform Docker images (`linux/amd64` + `linux/arm64`) to Docker Hub |
 
-To cut a release:
-
-```bash
-git tag v1.0.0
-git push origin v1.0.0
-```
+Images published to Docker Hub:
+- `mikeh1975/tradingview-mcp:latest` — MCP server (runtime image, no browser)
+- `mikeh1975/tradingview-mcp:login` — Login helper (includes Playwright + Chromium)
 
 ---
 
