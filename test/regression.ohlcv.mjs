@@ -20,7 +20,25 @@
  * Run: npm test   (build first: npm run build)
  */
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { getOHLCV } from "../dist/ohlcv.js";
+
+// ── Static guard (no network) — runs in CI without TV credentials ────────────
+// The live anchors below SKIP when the feed/auth is unavailable (e.g. CI), so
+// they can't be the CI gate on their own. This source-level assertion has teeth
+// with zero network: if the adjustment default is ever reverted from "none" to
+// "splits"/"dividends", it fails loudly on every push/PR.
+{
+  const srcPath = fileURLToPath(new URL("../src/ohlcv.ts", import.meta.url));
+  const src = readFileSync(srcPath, "utf8");
+  assert.match(
+    src,
+    /options\.adjustment\s*\?\?\s*"none"/,
+    'get_ohlcv adjustment default is not "none" — DEG-1789 regression (default reverted to adjusted bars)'
+  );
+  console.log('PASS  static: get_ohlcv adjustment default is "none"');
+}
 
 // Known-good UNADJUSTED anchors (public historical record):
 //   TLRY 2018-09-19: close ~$214.06, vol ~31.7M   (bug returned $2140.60 / 3.17M)
