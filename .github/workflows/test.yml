@@ -1,0 +1,23 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      # Regression gate (DEG-1789): the static guard asserts the get_ohlcv
+      # adjustment default stays "none" with zero network, so it fails the build
+      # on any revert even without TradingView credentials. The live-feed anchors
+      # in the same test skip cleanly when creds are absent (as in CI).
+      - run: npm test

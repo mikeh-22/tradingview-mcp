@@ -14,7 +14,8 @@
     "login": "node dist/login.js",
     "login:interactive": "node dist/login.js --interactive",
     "login:import": "node dist/login.js --import-cookies",
-    "inspector": "npx @modelcontextprotocol/inspector node dist/index.js"
+    "inspector": "npx @modelcontextprotocol/inspector node dist/index.js",
+    "test": "node test/regression.ohlcv.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",

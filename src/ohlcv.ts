@@ -42,8 +42,16 @@ function randomId(prefix: string): string {
 export async function getOHLCV(
   symbol: string,
   resolution: string,
-  options: { countback?: number; from?: number; to?: number } = {}
+  options: { countback?: number; from?: number; to?: number; adjustment?: string } = {}
 ): Promise<OHLCVBar[]> {
+  // TradingView corporate-action adjustment mode (DEG-1789).
+  // "none" (default) returns raw, unadjusted point-in-time bars — what a trader
+  // actually saw on the date (TLRY 2018-09-19 = $214.06, not the merger-adjusted
+  // $2140.60). Recent bars are identical to "splits" until a corporate action
+  // occurs, so this default is safe for live-data callers and correct for history.
+  // Pass adjustment:"splits" for split/merger back-adjusted continuity charts, or
+  // "dividends" to also fold dividends in.
+  const adjustment = options.adjustment ?? "none";
   const tvResolution = RESOLUTION_MAP[resolution];
   if (!tvResolution) {
     throw new Error(
@@ -88,7 +96,14 @@ export async function getOHLCV(
       resolved = true;
       clearTimeout(timeout);
       ws.close();
-      resolve(bars);
+      // Dedupe (streaming updates re-send bars), sort ascending, and clamp to the
+      // requested window — TV honors the range start but streams forward past `to`.
+      const byTime = new Map<number, OHLCVBar>();
+      for (const b of bars) byTime.set(b.time, b);
+      let out = [...byTime.values()].sort((a, b) => a.time - b.time);
+      if (options.from) out = out.filter((b) => b.time >= options.from!);
+      if (options.to) out = out.filter((b) => b.time <= options.to!);
+      resolve(out);
     }
 
     function setupSession() {
@@ -102,14 +117,19 @@ export async function getOHLCV(
         p: [
           chartSession,
           symAlias,
-          `={"adjustment":"splits","currency-id":"USD","metric":"price","symbol":"${symbol}"}`,
+          `={"adjustment":"${adjustment}","currency-id":"USD","metric":"price","symbol":"${symbol}"}`,
         ],
       }));
 
-      // create_series: [chartSession, seriesId, "s1", symAlias, resolution, countback, ""]
+      // create_series: [chartSession, seriesId, "s1", symAlias, resolution, countback, range]
+      // `range` must be a STRING. "" = latest `countback` bars (live mode).
+      // Historical window = the range-string form "r,FROM:TO" (unix seconds) —
+      // passing an object here is rejected by TV with "invalid parameters" (DEG-1671).
       const seriesParams: unknown[] = [chartSession, seriesId, "s1", symAlias, tvResolution, countback, ""];
-      if (options.from) {
-        seriesParams[seriesParams.length - 1] = { from: options.from, to: options.to ?? Math.floor(Date.now() / 1000) };
+      if (options.from || options.to) {
+        const fromTs = options.from ?? (options.to ? options.to - countback * 86400 : Math.floor(Date.now() / 1000) - countback * 86400);
+        const toTs = options.to ?? Math.floor(Date.now() / 1000);
+        seriesParams[seriesParams.length - 1] = `r,${fromTs}:${toTs}`;
       }
       ws.send(encode({ m: "create_series", p: seriesParams }));
     }
