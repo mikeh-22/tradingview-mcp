@@ -2,5 +2,8 @@ node_modules/
 dist/
 .env
 .tv_session.json
+.tv_session.json.bak
+*.tv_session.json*
 *.js.map
 scripts/
+test_client.mjs
