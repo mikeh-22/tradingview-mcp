@@ -162,6 +162,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           countback: { type: "number", description: "Number of bars to fetch (default 300)" },
           from: { type: "number", description: "Start time as Unix timestamp (seconds)" },
           to: { type: "number", description: "End time as Unix timestamp (seconds)" },
+          adjustment: {
+            type: "string",
+            enum: ["none", "splits", "dividends"],
+            description: "Corporate-action mode. 'none' (default) = raw unadjusted point-in-time prices (what a trader saw on the date). 'splits' = split/merger back-adjusted continuity. 'dividends' = also fold dividends in.",
+          },
         },
         required: ["symbol", "resolution"],
       },
@@ -409,14 +414,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
       }
       case "get_ohlcv": {
-        const { symbol, resolution, countback, from, to } = z.object({
+        const { symbol, resolution, countback, from, to, adjustment } = z.object({
           symbol: z.string(),
           resolution: z.string(),
           countback: z.number().optional(),
           from: z.number().optional(),
           to: z.number().optional(),
+          adjustment: z.enum(["none", "splits", "dividends"]).optional(),
         }).parse(args);
-        const result = await ohlcv.getOHLCV(symbol, resolution, { countback, from, to });
+        const result = await ohlcv.getOHLCV(symbol, resolution, { countback, from, to, adjustment });
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
       }
 
